@@ -184,6 +184,9 @@
 <script>
     // ======================= YOUR CLIENT KEY (embedded) =======================
     const TIKTOK_CLIENT_KEY = "aw2wstj0lmslds24";
+    // ======================= HARDCODED REDIRECT URI =======================
+    // MUST match exactly what you entered in TikTok Developer Portal → Login Kit → Redirect URI
+    const REDIRECT_URI = "https://tik-gray.vercel.app/";
     // ========================================================================
 
     // ---------- IndexedDB for accounts & scheduled posts ----------
@@ -377,13 +380,15 @@
     }
 
     document.getElementById('realTikTokConnectBtn').addEventListener('click', async () => {
-        const redirectUri = window.location.href.split('#')[0];
+        // Use HARDCODED redirect URI (must match TikTok portal exactly)
+        const redirectUri = REDIRECT_URI;
         const scope = 'user.info.basic';
         const { verifier, challenge } = await generatePKCE();
         const state = generateRandomString(24);
         sessionStorage.setItem('tiktok_verifier', verifier);
         sessionStorage.setItem('tiktok_state', state);
         const authUrl = `https://www.tiktok.com/v2/auth/authorize/?client_key=${TIKTOK_CLIENT_KEY}&scope=${scope}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&code_challenge=${challenge}&code_challenge_method=S256`;
+        console.log("Redirecting to TikTok OAuth:", authUrl);
         window.location.href = authUrl;
     });
 
@@ -391,13 +396,30 @@
         const params = new URLSearchParams(window.location.search);
         const code = params.get('code');
         const state = params.get('state');
+        const error = params.get('error');
+        const errorDesc = params.get('error_description');
+        
+        if (error) {
+            console.error("OAuth error:", error, errorDesc);
+            showToast(`❌ OAuth error: ${error} - ${errorDesc || 'Check app settings'}`, true);
+            // Remove error from URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+            return;
+        }
+        
         const savedState = sessionStorage.getItem('tiktok_state');
         const savedVerifier = sessionStorage.getItem('tiktok_verifier');
+        
         if (code && state && savedState === state && savedVerifier) {
             sessionStorage.removeItem('tiktok_state');
             sessionStorage.removeItem('tiktok_verifier');
-            // In production, you would exchange code+verifier for token via backend.
-            // Here we simulate a successful connection and store a mock account.
+            
+            // IMPORTANT: In a real app, you would send code + verifier to your backend
+            // to exchange for an access_token. Since we are frontend-only, we simulate.
+            // For real token exchange, you need a server that calls:
+            // POST https://open.tiktokapis.com/v2/oauth/token/
+            // with client_key, client_secret, code, grant_type, redirect_uri, code_verifier
+            
             showToast('✅ TikTok authenticated! Simulating account connection (real token would be stored).');
             const mockOpenId = 'user_' + Date.now() + '_' + Math.random().toString(36);
             const newAccount = {
@@ -410,6 +432,9 @@
             await refreshUI();
             // remove code from URL
             window.history.replaceState({}, document.title, window.location.pathname);
+        } else if (code) {
+            console.warn("State mismatch or missing verifier", { state, savedState });
+            showToast('⚠️ OAuth state verification failed. Please try again.', true);
         }
     }
 
@@ -497,6 +522,12 @@
         await openDB();
         await handleOAuthRedirect();
         await refreshUI();
+        
+        // Show reminder about Sandbox Target User if no accounts exist
+        const accounts = await getAccounts();
+        if (accounts.length === 0) {
+            console.log("No accounts. Reminder: Add your TikTok username as Target User in Sandbox settings.");
+        }
     });
 </script>
 </body>
