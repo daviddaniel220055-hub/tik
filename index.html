@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>audienceFlow – TikTok Scheduler (Real OAuth + Local Storage)</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: system-ui, 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
+        }
+        body {
+            background: radial-gradient(circle at 10% 20%, rgb(248, 250, 255) 0%, rgb(241, 245, 255) 100%);
+            padding: 1.5rem;
+        }
+        .container {
+            max-width: 1300px;
+            margin: 0 auto;
+        }
+        .glass-header {
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(12px);
+            border-radius: 2rem;
+            padding: 0.8rem 2rem;
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .logo h1 {
+            font-size: 1.8rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #000, #2a2e45);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+        .card {
+            background: rgba(255,255,255,0.96);
+            border-radius: 2rem;
+            box-shadow: 0 20px 35px -12px rgba(0,0,0,0.08);
+            padding: 1.5rem 1.8rem;
+            margin-bottom: 2rem;
+        }
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid #000;
+            padding-left: 0.8rem;
+        }
+        .tiktok-btn {
+            background: #000;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.8rem;
+            border-radius: 60px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .tiktok-btn:hover { background: #2e2e3a; transform: scale(0.98); }
+        .connected-badge {
+            background: #e6f4ea;
+            padding: 0.5rem 1.2rem;
+            border-radius: 40px;
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 1.2rem 0;
+        }
+        .upload-area {
+            border: 2px dashed #cad5e2;
+            border-radius: 1.5rem;
+            padding: 1.5rem;
+            text-align: center;
+            background: #fdfdfe;
+            margin-bottom: 1rem;
+        }
+        .btn-primary {
+            background: #121212;
+            color: white;
+            border: none;
+            padding: 0.6rem 1.3rem;
+            border-radius: 40px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .btn-outline {
+            background: transparent;
+            border: 1px solid #bdc4d0;
+            border-radius: 40px;
+            padding: 0.6rem 1.3rem;
+            cursor: pointer;
+        }
+        .schedule-item {
+            background: #f9f9fe;
+            border-radius: 1rem;
+            padding: 1rem;
+            margin-bottom: 0.8rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .toast-msg {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #1e2a3a;
+            color: white;
+            padding: 0.8rem 1.5rem;
+            border-radius: 60px;
+            z-index: 1000;
+            font-size: 0.85rem;
+        }
+        footer { text-align: center; margin-top: 2rem; color: #5b6e8c; font-size: 0.7rem; }
+        @media (max-width: 700px) {
+            body { padding: 1rem; }
+            .card { padding: 1rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="glass-header">
+        <div class="logo">
+            <h1><i class="fab fa-tiktok"></i> audienceFlow</h1>
+            <span>AI right‑audience posting · schedule & grow</span>
+        </div>
+        <div class="badge"><i class="fas fa-bolt"></i> free · OAuth ready</div>
+    </div>
+
+    <!-- accounts card -->
+    <div class="card">
+        <div class="card-header"><i class="fab fa-tiktok"></i> Connected accounts</div>
+        <div id="authArea">
+            <button id="realTikTokConnectBtn" class="tiktok-btn"><i class="fab fa-tiktok"></i> + Connect TikTok</button>
+            <div id="userList" style="margin-top: 1rem;"></div>
+        </div>
+    </div>
+
+    <!-- upload & schedule card -->
+    <div class="card">
+        <div class="card-header"><i class="fas fa-calendar-plus"></i> Upload & schedule post</div>
+        <div id="schedulePanel">
+            <div id="activeUserDisplay" style="margin-bottom: 0.8rem; font-weight: 500;"></div>
+            <div class="upload-area">
+                <label for="videoScheduler" style="background:#f0f4fa; padding:0.4rem 1.2rem; border-radius:40px; cursor:pointer; display:inline-flex; gap:6px;"><i class="fas fa-video"></i> Choose video (MP4)</label>
+                <input type="file" id="videoScheduler" accept="video/mp4" style="display:none;">
+                <div id="fileNamePreview" style="margin-top:0.8rem; font-size:0.8rem;"><i class="far fa-file-video"></i> no video</div>
+            </div>
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
+                <input type="text" id="postCaption" placeholder="Caption + #hashtags" style="flex:2; padding: 10px 16px; border-radius: 60px; border: 1px solid #cdd9ed;">
+                <button id="schedulePostBtn" class="btn-primary"><i class="far fa-calendar-alt"></i> Schedule</button>
+                <button id="postNowBtn" class="btn-outline"><i class="fas fa-meteor"></i> Post now (simulated)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- scheduled posts list -->
+    <div class="card">
+        <div class="card-header"><i class="fas fa-list-ul"></i> Upcoming scheduled posts</div>
+        <div id="scheduledList">✨ No scheduled posts yet.</div>
+    </div>
+</div>
+<footer><i class="fas fa-shield-alt"></i> Real OAuth PKCE (TikTok Login). Token exchange simulated because frontend only – upgrade with a tiny backend for live publishing.</footer>
+
+<script>
+    // ======================= YOUR CLIENT KEY (embedded) =======================
+    const TIKTOK_CLIENT_KEY = "aw2wstj0lmslds24";
+    // ========================================================================
+
+    // ---------- IndexedDB for accounts & scheduled posts ----------
+    const DB_NAME = 'audienceFlowDB';
+    let db = null;
+
+    function openDB() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, 1);
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => { db = request.result; resolve(db); };
+            request.onupgradeneeded = (e) => {
+                const db_ = e.target.result;
+                if (!db_.objectStoreNames.contains('accounts')) {
+                    db_.createObjectStore('accounts', { keyPath: 'openId' });
+                }
+                if (!db_.objectStoreNames.contains('scheduled')) {
+                    const store = db_.createObjectStore('scheduled', { keyPath: 'id', autoIncrement: true });
+                    store.createIndex('openId', 'openId', { unique: false });
+                }
+            };
+        });
+    }
+
+    async function getAccounts() {
+        if (!db) await openDB();
+        return new Promise((resolve) => {
+            const tx = db.transaction('accounts', 'readonly');
+            const req = tx.objectStore('accounts').getAll();
+            req.onsuccess = () => resolve(req.result || []);
+        });
+    }
+
+    async function saveAccount(acc) {
+        if (!db) await openDB();
+        return new Promise((resolve) => {
+            const tx = db.transaction('accounts', 'readwrite');
+            tx.objectStore('accounts').put(acc);
+            tx.oncomplete = () => resolve(true);
+        });
+    }
+
+    async function deleteAccount(openId) {
+        if (!db) await openDB();
+        return new Promise((resolve) => {
+            const tx = db.transaction('accounts', 'readwrite');
+            tx.objectStore('accounts').delete(openId);
+            tx.oncomplete = () => resolve(true);
+        });
+    }
+
+    async function getScheduled(openId = null) {
+        if (!db) await openDB();
+        return new Promise((resolve) => {
+            const tx = db.transaction('scheduled', 'readonly');
+            let req;
+            if (openId) {
+                req = tx.objectStore('scheduled').index('openId').getAll(openId);
+            } else {
+                req = tx.objectStore('scheduled').getAll();
+            }
+            req.onsuccess = () => {
+                let items = req.result || [];
+                items.sort((a,b) => a.scheduledTime - b.scheduledTime);
+                resolve(items);
+            };
+        });
+    }
+
+    async function addScheduledPost(post) {
+        if (!db) await openDB();
+        return new Promise((resolve) => {
+            const tx = db.transaction('scheduled', 'readwrite');
+            const req = tx.objectStore('scheduled').add(post);
+            req.onsuccess = () => resolve(req.result);
+        });
+    }
+
+    async function removeScheduledPost(id) {
+        if (!db) await openDB();
+        return new Promise((resolve) => {
+            const tx = db.transaction('scheduled', 'readwrite');
+            tx.objectStore('scheduled').delete(id);
+            tx.oncomplete = () => resolve(true);
+        });
+    }
+
+    // ---------- UI state ----------
+    let currentActiveAccount = null;
+    let pendingVideoFile = null;
+    let pendingCaption = "";
+
+    async function refreshUI() {
+        const accounts = await getAccounts();
+        const userContainer = document.getElementById('userList');
+        if (accounts.length === 0) {
+            userContainer.innerHTML = `<div style="color:#6c7a8e;"><i class="fas fa-user-plus"></i> No connected accounts. Click "Connect TikTok".</div>`;
+            document.getElementById('activeUserDisplay').innerHTML = `<i class="fas fa-exclamation-triangle"></i> No active account – connect one first.`;
+            currentActiveAccount = null;
+        } else {
+            let html = `<div style="display:flex; flex-wrap:wrap; gap:12px;">`;
+            for (let acc of accounts) {
+                const isActive = currentActiveAccount && currentActiveAccount.openId === acc.openId;
+                html += `<div style="background:${isActive ? '#eef2ff' : '#fff'}; border:1px solid #e2e9f2; border-radius:60px; padding:6px 18px; display:flex; gap:12px; align-items:center;">
+                            <i class="fab fa-tiktok"></i> <strong>${acc.displayName || acc.username || 'TikTok user'}</strong>
+                            <button class="selectUserBtn" data-openid="${acc.openId}" style="background:transparent; border:none; cursor:pointer; color:#1f6392;"><i class="fas fa-check-circle"></i> Activate</button>
+                            <button class="removeUserBtn" data-openid="${acc.openId}" style="background:transparent; border:none; cursor:pointer; color:#b91c1c;"><i class="fas fa-trash-alt"></i></button>
+                        </div>`;
+            }
+            html += `</div>`;
+            userContainer.innerHTML = html;
+            if (!currentActiveAccount && accounts.length) currentActiveAccount = accounts[0];
+            document.getElementById('activeUserDisplay').innerHTML = `<i class="fab fa-tiktok"></i> Active: <strong>${currentActiveAccount?.displayName || 'None'}</strong> – posts & schedules use this account.`;
+            attachUserHandlers();
+        }
+        await refreshScheduledList();
+    }
+
+    function attachUserHandlers() {
+        document.querySelectorAll('.selectUserBtn').forEach(btn => {
+            btn.removeEventListener('click', handleSelect);
+            btn.addEventListener('click', handleSelect);
+        });
+        document.querySelectorAll('.removeUserBtn').forEach(btn => {
+            btn.removeEventListener('click', handleRemove);
+            btn.addEventListener('click', handleRemove);
+        });
+    }
+
+    async function handleSelect(e) {
+        const openId = e.currentTarget.getAttribute('data-openid');
+        const accounts = await getAccounts();
+        currentActiveAccount = accounts.find(a => a.openId === openId);
+        refreshUI();
+    }
+
+    async function handleRemove(e) {
+        const openId = e.currentTarget.getAttribute('data-openid');
+        if (confirm('Remove account? All scheduled posts for it will be deleted.')) {
+            const scheduled = await getScheduled(openId);
+            for (let sch of scheduled) await removeScheduledPost(sch.id);
+            await deleteAccount(openId);
+            if (currentActiveAccount?.openId === openId) currentActiveAccount = null;
+            refreshUI();
+        }
+    }
+
+    async function refreshScheduledList() {
+        if (!currentActiveAccount) {
+            document.getElementById('scheduledList').innerHTML = '✨ Select a TikTok account to see its scheduled posts.';
+            return;
+        }
+        const scheduled = await getScheduled(currentActiveAccount.openId);
+        if (scheduled.length === 0) {
+            document.getElementById('scheduledList').innerHTML = '📭 No scheduled posts for this account. Use the scheduler above.';
+            return;
+        }
+        let html = '';
+        for (let sch of scheduled) {
+            html += `<div class="schedule-item">
+                        <div><strong>${sch.videoName || 'video'}</strong> · ${new Date(sch.scheduledTime).toLocaleString()}<br><span style="font-size:0.7rem;">${sch.caption.slice(0,60)}</span></div>
+                        <button class="deleteScheduleBtn" data-id="${sch.id}" style="background:#fff0f0; border:none; padding:6px 14px; border-radius:40px;">Cancel</button>
+                    </div>`;
+        }
+        document.getElementById('scheduledList').innerHTML = html;
+        document.querySelectorAll('.deleteScheduleBtn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const id = Number(btn.getAttribute('data-id'));
+                await removeScheduledPost(id);
+                refreshScheduledList();
+                showToast('🗑️ Schedule cancelled');
+            });
+        });
+    }
+
+    // ---------- OAuth PKCE (real redirect, then simulate token because no backend) ----------
+    function generateRandomString(len) {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+        let result = '';
+        for (let i = 0; i < len; i++) result += chars[Math.floor(Math.random() * chars.length)];
+        return result;
+    }
+
+    async function generatePKCE() {
+        const verifier = generateRandomString(64);
+        const encoder = new TextEncoder();
+        const digest = await crypto.subtle.digest('SHA-256', encoder.encode(verifier));
+        const challenge = btoa(String.fromCharCode(...new Uint8Array(digest)))
+            .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        return { verifier, challenge };
+    }
+
+    document.getElementById('realTikTokConnectBtn').addEventListener('click', async () => {
+        const redirectUri = window.location.href.split('#')[0];
+        const scope = 'user.info.basic';
+        const { verifier, challenge } = await generatePKCE();
+        const state = generateRandomString(24);
+        sessionStorage.setItem('tiktok_verifier', verifier);
+        sessionStorage.setItem('tiktok_state', state);
+        const authUrl = `https://www.tiktok.com/v2/auth/authorize/?client_key=${TIKTOK_CLIENT_KEY}&scope=${scope}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&code_challenge=${challenge}&code_challenge_method=S256`;
+        window.location.href = authUrl;
+    });
+
+    async function handleOAuthRedirect() {
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        const state = params.get('state');
+        const savedState = sessionStorage.getItem('tiktok_state');
+        const savedVerifier = sessionStorage.getItem('tiktok_verifier');
+        if (code && state && savedState === state && savedVerifier) {
+            sessionStorage.removeItem('tiktok_state');
+            sessionStorage.removeItem('tiktok_verifier');
+            // In production, you would exchange code+verifier for token via backend.
+            // Here we simulate a successful connection and store a mock account.
+            showToast('✅ TikTok authenticated! Simulating account connection (real token would be stored).');
+            const mockOpenId = 'user_' + Date.now() + '_' + Math.random().toString(36);
+            const newAccount = {
+                openId: mockOpenId,
+                username: 'TikTok Creator',
+                displayName: 'TikTok User',
+                accessToken: 'simulated_token_' + Date.now()
+            };
+            await saveAccount(newAccount);
+            await refreshUI();
+            // remove code from URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    }
+
+    // ---------- Video upload & schedule simulation ----------
+    const videoInput = document.getElementById('videoScheduler');
+    const previewSpan = document.getElementById('fileNamePreview');
+    videoInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+            pendingVideoFile = e.target.files[0];
+            previewSpan.innerHTML = `<i class="fas fa-check-circle"></i> ${pendingVideoFile.name} ready`;
+        } else {
+            pendingVideoFile = null;
+            previewSpan.innerHTML = `<i class="far fa-file-video"></i> no video`;
+        }
+    });
+    document.getElementById('postCaption').addEventListener('input', (e) => { pendingCaption = e.target.value; });
+
+    async function performPost(isSchedule = false, scheduleTimestamp = null) {
+        if (!currentActiveAccount) { showToast('❌ Select/connect a TikTok account first', true); return; }
+        if (!pendingVideoFile) { showToast('📂 Choose a video file', true); return; }
+        const caption = pendingCaption.trim() || "Check out my video! #audienceFlow";
+        if (isSchedule && scheduleTimestamp) {
+            await addScheduledPost({
+                openId: currentActiveAccount.openId,
+                videoName: pendingVideoFile.name,
+                caption: caption,
+                scheduledTime: scheduleTimestamp,
+                createdAt: Date.now()
+            });
+            showToast(`📅 Scheduled for ${new Date(scheduleTimestamp).toLocaleString()}`);
+            // reset
+            pendingVideoFile = null;
+            videoInput.value = '';
+            previewSpan.innerHTML = `<i class="far fa-file-video"></i> no video`;
+            document.getElementById('postCaption').value = '';
+            pendingCaption = '';
+            await refreshScheduledList();
+        } else {
+            showToast('⏳ Simulating post to TikTok right audience...');
+            setTimeout(() => {
+                showToast(`✅ Posted! "${pendingVideoFile.name}" published with AI hashtags.`);
+                pendingVideoFile = null;
+                videoInput.value = '';
+                previewSpan.innerHTML = `<i class="far fa-file-video"></i> no video`;
+                document.getElementById('postCaption').value = '';
+                pendingCaption = '';
+            }, 1500);
+        }
+    }
+
+    document.getElementById('postNowBtn').addEventListener('click', () => performPost(false));
+    document.getElementById('schedulePostBtn').addEventListener('click', () => {
+        if (!currentActiveAccount) { showToast('Select a TikTok account first', true); return; }
+        const dlg = prompt('📅 Enter future date/time (YYYY-MM-DD HH:MM), e.g., 2026-06-01 18:30');
+        if (dlg) {
+            const ts = Date.parse(dlg);
+            if (ts && ts > Date.now()) performPost(true, ts);
+            else showToast('Invalid or past date', true);
+        }
+    });
+
+    function showToast(msg, isError = false) {
+        const toast = document.createElement('div');
+        toast.className = 'toast-msg';
+        toast.innerHTML = `<i class="fas ${isError ? 'fa-exclamation-triangle' : 'fa-check-circle'}"></i> ${msg}`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3500);
+    }
+
+    // auto-check scheduled posts every minute
+    setInterval(async () => {
+        if (!currentActiveAccount) return;
+        const now = Date.now();
+        const scheduled = await getScheduled(currentActiveAccount.openId);
+        for (let sch of scheduled) {
+            if (sch.scheduledTime <= now) {
+                await removeScheduledPost(sch.id);
+                showToast(`📢 Auto-posting "${sch.videoName}" (simulated). Scheduled post published.`);
+                await refreshScheduledList();
+            }
+        }
+    }, 60000);
+
+    window.addEventListener('DOMContentLoaded', async () => {
+        await openDB();
+        await handleOAuthRedirect();
+        await refreshUI();
+    });
+</script>
+</body>
+</html>
